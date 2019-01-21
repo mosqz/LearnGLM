@@ -1,0 +1,172 @@
+---
+title: "Chap3 Exercise"
+output: html_notebook
+---
+
+## Question 1
+### (a) Fit the model
+Read the data: 
+```{r}
+d1 <- read.table("../ARM_Data/exercise2.1.dat", header=T)
+d1_40 <- d1[0:40,]
+head(d1_40)
+```
+Fit the model:
+```{r}
+fit1a <- lm(y ~ x1 + x2, data=d1_40)
+summary(fit1a)
+```
+From the summary info, the coefficients for both x1 and x2 are significantly larger than 0. 
+The variance explained $R^2$ is very high. Residual standard deviation is 0.9, so residual variance is 0.81, $R^2$ could be calculated by $1-\sigma^2/Var(y)$, which is consistent with the summary output: 
+```{r}
+1-0.81/var(d1_40$y)
+```
+### (b) Display the data and fit
+Plot the data and fit:
+```{r}
+par(mfrow=c(1,2))
+plot(d1_40$x1, d1_40$y, xlab='x1', ylab='y')
+# add the fit curve when evaluate x2 at its mean value
+curve(cbind(1,x,mean(d1_40$x2)) %*% coef(fit1a), add=T)
+# do the same for x2
+plot(d1_40$x2, d1_40$y, xlab='x2', ylab='y')
+curve(cbind(1,mean(d1_40$x1), x) %*% coef(fit1a), add=T)
+```
+### (c) Residual plot
+Plot residuals again predicted value and each predictor:
+```{r}
+resid <- residuals(fit1a)
+pred <- predict(fit1a)
+par(mfrow=c(1,3))
+plot(pred, resid, xlab='Predicted values', ylab='Residuals')
+plot(d1_40$x1, resid, xlab='x1', ylab='Residuals')
+plot(d1_40$x2, resid, xlab='x2', ylab='Residuals')
+```
+From the residual plots, it seems that there is a positive correlaction between residuals and x2. 
+
+### (d) Make predictions
+```{r}
+d1_20 <- d1[41:60,]
+pred_new <- predict(fit1a, d1_20)
+pred_new
+```
+The confidence of prediction could be assessed by the residual standard deviation, since it's 0.9, so I expect the predicted values to be with $y+-2*0.9$ range. 
+
+## Question 2
+### (a) Regression line
+Regression line is given by $log(Earning)=0.8*log(Height)+6.96+\epsilon$.
+Residual standard deviation is log(1.1)/2, which is 0.0477.
+
+### (b) Variance explained
+$R^2=1-\sigma^2/var(Y)$, here we know $\sigma=0.0477$, but we don't know var(Y), so don't know how to calculate the $R^2$. 
+
+## Question 3
+### (a) Regression of independent variables
+```{r}
+var1 <- rnorm(1000, mean=0, sd=1)
+var2 <- rnorm(1000, mean=0, sd=1)
+fit3a <- lm(var2 ~ var1)
+summary(fit3a)
+```
+The results varies from simulation to simulation, but most cases it's not significant. 
+
+### (b) How many times significant
+```{r}
+fit3b_zscore <- c()
+for(i in 0:100){
+  var1 <- rnorm(1000, mean=0, sd=1)
+  var2 <- rnorm(1000, mean=0, sd=1)
+  fit3b <- lm(var2 ~ var1)
+  fit3b_summary <- summary(fit3b)
+  fit3b_zscore[i] <- coef(fit3b)[2] / fit3b_summary$coefficients[2,2]
+}
+# how many times larger than 2?
+fit3b_zscore_sig <- fit3b_zscore>2
+sum(fit3b_zscore_sig)
+```
+
+## Question 4
+#### (a) Fit a one-predictor model
+Read the data:
+```{r}
+library("foreign")
+iq.data <- read.dta("../ARM_Data/child.iq/child.iq.dta")
+head(iq.data)
+```
+Fit a model:
+```{r}
+fit4a <- lm(ppvt ~ momage, data=iq.data)
+summary(fit4a)
+```
+Plot the data points:
+```{r}
+plot(iq.data$momage, iq.data$ppvt)
+```
+
+Interpretation: when child's score increase 0.84 in average when mom's age increase by 1. Recommendation is give birth the later the better.   
+Plot the residuals:
+```{r}
+resid <- residuals(fit4a)
+pred <- predict(fit4a)
+plot(pred, resid)
+```
+#### (b) Fit a two-predictor model
+```{r}
+fit4b <- lm(ppvt ~ educ_cat + momage, data=iq.data)
+summary(fit4b)
+```
+After adding mom's education, effect of mom's age is not significant anymore, which suggests that effect we saw for the single-predictor model is because there is a positive correlation between mom's age and mom's education. 
+```{r}
+plot(iq.data$momage ~ jitter(iq.data$educ_cat))
+cor.test(iq.data$educ_cat, iq.data$momage)
+```
+
+### (c) Indicator variable
+```{r}
+# create the high school indicator variable, assuming that greater than 1 is completed high school 
+iq.data$hs <- as.numeric(iq.data$educ_cat > 1)
+head(iq.data)
+```
+```{r}
+fit4c <- lm(ppvt ~ momage + hs + momage:hs, data=iq.data)
+summary(fit4c)
+```
+Plot the two categories separately:
+```{r}
+col <- ifelse(iq.data$hs>0, 'blue', 'red')
+plot(iq.data$momage, iq.data$ppvt, col=col)
+legend('topleft', legend=c('hs=1', 'hs=0'), fill=c('blue', 'red'))
+curve(cbind(1,x,0,0) %*% coef(fit4c), add=T, col='red')
+curve(cbind(1,x,1,x) %*% coef(fit4c), add=T, col='blue')
+```
+Interestingly, the trend of child's score on mom's age is positive for mom who completed high school, but negative for mom who didn't, which kinda make sense. 
+
+#### (d) Make predictions
+```{r}
+iq.data.model <- iq.data[0:200,]
+iq.data.pred <- iq.data[201:400,]
+fit4d <- lm(ppvt ~ educ_cat + momage, data=iq.data.model)
+summary(fit4d)
+```
+```{r}
+pred <- predict(fit4d, iq.data.pred)
+plot(pred, iq.data.pred$ppvt, xlab='predicted', ylab='observed')
+abline(a=0, b=1)
+```
+
+## Question 5
+### (a) Fit one-predictor model
+Read the data:
+```{r}
+d5 <- read.csv('../ARM_Data/ProfEvaltnsBeautyPublic.csv')
+head(d5)
+```
+Fit the model:
+```{r}
+fit5a <- lm(courseevaluation ~ btystdave, data=d5)
+summary(fit5a)
+```
+```{r}
+plot(fit5a)
+```
+
