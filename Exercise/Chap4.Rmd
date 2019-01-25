@@ -1,0 +1,163 @@
+---
+title: "Chap4"
+output: html_notebook
+---
+
+
+## Question 1
+### (a) prediction range
+```{r}
+sprintf("the range will be %f to %f", exp(-0.25), exp(0.25))
+```
+### (b) Regression line
+```{r}
+# simulate the weight 
+# assuming weight has mean 120 pounds, sd of 15 pounds
+log_height <- rnorm(1000, mean=log(6), sd=log(1.1))
+# assuming a relationship between height and weight
+error <- rnorm(1000, mean=0, sd=0.25)
+log_weight <- -3.5 + 2.0 * log_height + error
+# plot weight and height
+plot(log_height,log_weight)
+```
+
+```{r}
+fit4a <- lm(log_weight ~ log_height)
+summary(fit4a)
+```
+
+## Question 2
+### (a) Clean data
+```{r}
+d2 = read.dta("../ARM_Data/earnings/heights.dta")
+head(d2)
+```
+```{r}
+# drop row that contain na
+d2_c <- na.omit(d2[,c("earn", "sex", "height")])
+dim(d2_c)
+```
+
+### (b) Fit a model
+```{r}
+# use z scores for height
+d2_c$height.z <- scale(d2_c$height, center=TRUE, scale=TRUE)
+fit2b <- lm(earn ~ height.z, data=d2_c)
+summary(fit2b)
+```
+
+```{r}
+# plot the relationship between earning and height
+plot(d2_c$height.z, d2_c$earn)
+curve(cbind(1, x) %*% coef(fit2b), add=TRUE)
+```
+
+### (c) Try different models
+Try including all predictors 
+```{r}
+# transform the sex into an indicator variable
+d2_c$sex.ind <- d2_c$sex - 1
+fit2c_1 <- lm(earn ~ height.z + sex.ind, data=d2_c)
+summary(fit2c_1)
+```
+```{r}
+# try log transform the earn
+# only fit the ones with earning greater than zero
+d2_c_pos <- d2_c[d2_c$earn>0,]
+d2_c_pos$log_earn <- log(d2_c_pos$earn)
+fit2c_2 <- lm(log_earn ~ height.z + sex.ind, data=d2_c_pos)
+summary(fit2c_2)
+```
+
+```{r}
+# try including interactions
+fit2c_3 <- lm(earn ~ height.z + sex.ind + height.z:sex.ind, data=d2_c)
+summary(fit2c_3)
+```
+
+## Question 4
+### (a) scatter plot
+```{r}
+# load the data
+d4 <- read.dta("../ARM_Data/pollution.dta")
+head(d4)
+```
+
+```{r}
+plot(d4$nox, d4$mort, xlab="nitric oxides", ylab="mortality")
+```
+There seems a positive correlation between mortality and nitric oxides, although some outliers exist.
+Fit the model:
+```{r}
+fit4a <- lm(mort ~ nox, data=d4)
+summary(fit4a)
+```
+Plot the residuals:
+```{r}
+resid <- residuals(fit4a)
+pred <- predict(fit4a)
+plot(pred, resid, xlab="Predicted value", ylab="Residuals")
+```
+
+### (b) Try transformation
+Log-transform the nitric oxides level:
+```{r}
+d4_t <- d4
+d4_t$log_nox <- log(d4$nox)
+fit4b <- lm(mort ~ log_nox, data=d4_t)
+summary(fit4b)
+```
+Log-tranform  mortality:
+```{r}
+d4_t$log_mort <- log(d4$mort)
+fit4b2 <- lm(log_mort ~ nox, data=d4_t)
+summary(fit4b2)
+```
+Log-transform both mortality and nitric acid
+```{r}
+fit4b3 <- lm(log_mort ~ log_nox, data=d4_t)
+summary(fit4b3)
+```
+Plot the log_mort vs log_nox:
+```{r}
+plot(d4_t$log_nox, d4_t$log_mort)
+curve(cbind(1,x) %*% coef(fit4b3), add=TRUE)
+```
+
+### (c) Intepretation
+After log-transformation of both nitrix acid and mortality, coefficient means how much percent mortality will increase when the nitric acid increase 1%, here it's exp(0.0159), which should be very close to 0.0159%. 
+If just log-transform the mortality, coefficient means how many percents mortality will increase when increase nitric acid by 1 unit. 
+
+### (d) Multi-predictor model
+```{r}
+d4_t$log_so2 <- log(d4_t$so2)
+d4_t$log_hc <- log(d4_t$hc)
+fit4d <- lm(log_mort ~ log_nox + log_so2 + log_hc, data=d4_t)
+summary(fit4d)
+```
+```{r}
+par(mfrow=c(1,3))
+plot(d4_t$log_nox, d4_t$log_mort, xlab="log(NOX)", ylab="log(mortality)")
+curve(cbind(1,x,mean(d4_t$log_so2),mean(d4_t$log_hc)) %*% coef(fit4d), add=TRUE)
+plot(d4_t$log_so2, d4_t$log_mort, xlab="log(SO2)", ylab="log(mortality)")
+curve(cbind(1,mean(d4_t$log_nox),x,mean(d4_t$log_hc)) %*% coef(fit4d), add=TRUE)
+plot(d4_t$log_nox, d4_t$log_mort, xlab="log(HC)", ylab="log(mortality)")
+curve(cbind(1,mean(d4_t$log_nox),mean(d4_t$log_hc),x) %*% coef(fit4d), add=TRUE)
+```
+### (e) cross-validataion
+Fit half of the data:
+```{r}
+d4_size <- dim(d4_t)[1]
+d4_t_half1 <- d4_t[1:(d4_size/2),]
+d4_t_half2 <- d4_t[(d4_size/2):d4_size,]
+fit4e <- lm(log_mort ~ log_nox + log_so2 + log_hc, data=d4_t_half1)
+summary(fit4e)
+```
+Make predictions: 
+```{r}
+d4_pred <- predict(fit4e, d4_t_half2)
+plot(d4_pred, d4_t_half2$log_mort, xlab="log(Predicted mortality)", ylab="log(Actual mortality)", xlim=c(6.6,7.1), ylim=c(6.6, 7.1))
+abline(0,1)
+```
+
+
